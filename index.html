@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мой трекер спортзала</title>
+    
+    <!-- SVG иконка (гантель) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏋️‍♂️</text></svg>">
+    
+    <!-- Альтернатива: простая SVG иконка гантели -->
+    <!-- <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect x='20' y='40' width='60' height='20' rx='5' fill='%234CAF50'/><rect x='15' y='35' width='10' height='30' rx='3' fill='%23333'/><rect x='75' y='35' width='10' height='30' rx='3' fill='%23333'/></svg>"> -->
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🗓️ Мой календарь спортзала</h1>
+        <div class="calendar-header">
+            <button id="prev-month">←</button>
+            <h2 id="current-month-year">Май 2024</h2>
+            <button id="next-month">→</button>
+        </div>
+        <div id="calendar">
+            <!-- Дни недели и числа будут генерироваться через JavaScript -->
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
