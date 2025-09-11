@@ -1,121 +1,337 @@
+/* Reset для всех устройств */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+}
+
 body {
-    font-family: Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     background-color: #f0f0f0;
     margin: 0;
     padding: 20px;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
 }
 
 .container {
-    max-width: 800px;
+    width: 100%;
+    max-width: 1200px;
     margin: 0 auto;
     background: white;
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    padding: 30px;
+    border-radius: 20px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
 }
 
 h1 {
     text-align: center;
     color: #333;
-    margin-bottom: 20px;
+    margin-bottom: 30px;
+    font-size: 2.2rem;
+    font-weight: 700;
 }
 
 .calendar-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 15px;
+    margin-bottom: 25px;
+    padding: 0 10px;
 }
 
 .calendar-header h2 {
     margin: 0;
     color: #333;
+    font-size: 1.5rem;
+    font-weight: 600;
+    text-align: center;
+    flex: 1;
 }
 
 .calendar-header button {
     background: #4CAF50;
     color: white;
     border: none;
-    padding: 8px 15px;
-    border-radius: 5px;
+    padding: 12px 20px;
+    border-radius: 12px;
     cursor: pointer;
     font-weight: bold;
+    font-size: 1.1rem;
+    min-width: 60px;
+    transition: all 0.2s ease;
 }
 
 .calendar-header button:hover {
     background: #45a049;
+    transform: translateY(-2px);
 }
 
 #calendar {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 5px;
+    gap: 8px;
+    width: 100%;
 }
 
 .weekday {
-    aspect-ratio: 2;
-    height: 30px;
+    height: 45px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: bold;
-    background-color: #808080; /* Серый цвет для дней недели */
+    font-weight: 600;
+    background-color: #808080;
     color: white;
-    border-radius: 5px;
-    padding: 2px;
-    font-size: 12px;
+    border-radius: 12px;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .day {
     aspect-ratio: 1;
-    background-color: #e0e0e0; /* Белый/серый по умолчанию */
+    background-color: #f8f9fa;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 5px;
+    border-radius: 12px;
     cursor: pointer;
-    font-weight: bold;
+    font-weight: 600;
     position: relative;
-    min-height: 40px;
-    transition: background-color 0.2s ease;
+    font-size: 16px;
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+    min-height: 50px;
 }
 
+/* Улучшенные стили для состояний */
 .day.red {
-    background-color: #ff6b6b; /* Красный цвет */
+    background-color: #ff6b6b;
     color: white;
+    border-color: #ff5252;
+    transform: scale(1.05);
 }
 
 .day.green {
-    background-color: #4CAF50; /* Зеленый цвет */
+    background-color: #4CAF50;
     color: white;
+    border-color: #45a049;
+    transform: scale(1.05);
 }
 
 .day.yellow {
-    background-color: #ffd700; /* Желтый цвет для других месяцев */
+    background-color: #ffd700;
     color: #333;
+    border-color: #ffcc00;
 }
 
 .day.today {
-    border: 2px solid #ff6b6b;
+    border: 3px solid #ff6b6b;
+    background-color: #fff;
+    color: #333;
+    font-weight: 700;
 }
 
 .day.other-month {
-    background-color: #ffd700; /* Желтый цвет для дней других месяцев */
+    background-color: #ffd700;
     color: #666;
+    opacity: 0.6;
 }
 
-.day:hover {
-    background-color: #d0d0d0;
+/* Hover эффекты для десктопа */
+@media (hover: hover) {
+    .day:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    .day.red:hover {
+        background-color: #ff5252;
+    }
+    
+    .day.green:hover {
+        background-color: #45a049;
+    }
+    
+    .day.yellow:hover {
+        background-color: #ffcc00;
+    }
 }
 
-.day.red:hover {
+/* Touch эффекты для мобильных */
+.day:active {
+    transform: scale(0.95);
+}
+
+.day.red:active {
     background-color: #ff5252;
 }
 
-.day.green:hover {
+.day.green:active {
     background-color: #45a049;
 }
 
-.day.yellow:hover {
+.day.yellow:active {
     background-color: #ffcc00;
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 768px) {
+    body {
+        padding: 15px;
+    }
+    
+    .container {
+        padding: 20px 15px;
+        border-radius: 16px;
+    }
+    
+    h1 {
+        font-size: 1.5rem;
+        margin-bottom: 20px;
+    }
+    
+    .calendar-header {
+        margin-bottom: 20px;
+    }
+    
+    .calendar-header h2 {
+        font-size: 1.2rem;
+    }
+    
+    .calendar-header button {
+        padding: 10px 16px;
+        min-width: 50px;
+        font-size: 1rem;
+        border-radius: 10px;
+    }
+    
+    #calendar {
+        gap: 4px;
+    }
+    
+    .weekday {
+        height: 35px;
+        font-size: 12px;
+        border-radius: 8px;
+    }
+    
+    .day {
+        font-size: 14px;
+        min-height: 44px;
+        border-radius: 8px;
+    }
+}
+
+/* Для очень маленьких экранов */
+@media (max-width: 320px) {
+    .container {
+        padding: 15px 10px;
+    }
+    
+    h1 {
+        font-size: 1.3rem;
+    }
+    
+    .calendar-header h2 {
+        font-size: 1.1rem;
+    }
+    
+    .calendar-header button {
+        padding: 8px 12px;
+        min-width: 45px;
+        font-size: 0.9rem;
+    }
+    
+    .weekday {
+        height: 30px;
+        font-size: 11px;
+    }
+    
+    .day {
+        font-size: 13px;
+        min-height: 40px;
+    }
+}
+
+/* Для landscape режима на мобильных */
+@media (max-height: 500px) and (orientation: landscape) {
+    .container {
+        padding: 15px;
+    }
+    
+    h1 {
+        font-size: 1.3rem;
+        margin-bottom: 15px;
+    }
+    
+    #calendar {
+        gap: 3px;
+    }
+    
+    .weekday {
+        height: 28px;
+        font-size: 11px;
+    }
+    
+    .day {
+        min-height: 35px;
+        font-size: 12px;
+    }
+}
+
+/* Стили для десктопа (большие экраны) */
+@media (min-width: 1024px) {
+    .container {
+        padding: 40px;
+        margin: 40px auto;
+    }
+    
+    h1 {
+        font-size: 2.5rem;
+        margin-bottom: 40px;
+    }
+    
+    .calendar-header {
+        margin-bottom: 30px;
+    }
+    
+    .calendar-header h2 {
+        font-size: 1.8rem;
+    }
+    
+    .calendar-header button {
+        padding: 15px 25px;
+        font-size: 1.2rem;
+        min-width: 70px;
+    }
+    
+    #calendar {
+        gap: 12px;
+    }
+    
+    .weekday {
+        height: 50px;
+        font-size: 16px;
+        border-radius: 15px;
+    }
+    
+    .day {
+        font-size: 18px;
+        min-height: 60px;
+        border-radius: 15px;
+    }
+}
+
+/* Улучшение скролла */
+.container {
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Предотвращение zoom на iOS */
+input, select, textarea {
+    font-size: 16px !important;
 }
