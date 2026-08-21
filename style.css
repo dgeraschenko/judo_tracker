@@ -335,3 +335,59 @@ h1 {
 input, select, textarea {
     font-size: 16px !important;
 }
+
+/* Import/Export buttons */
+.import-export-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+    gap: 10px;
+}
+
+.export-btn,
+.import-label {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    display: inline-block;
+    transition: all 0.2s ease;
+}
+
+.export-btn:hover,
+.import-label:hover {
+    background: #5a6268;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+#today-btn {
+    background: #ff6b6b;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-left: 10px;
+    transition: all 0.2s ease;
+}
+
+#today-btn:hover {
+    background: #ff5252;
+}
+
+@media (max-width: 768px) {
+    .import-export-container {
+        flex-wrap: wrap;
+    }
+    
+    .export-btn,
+    .import-label {
+        padding: 6px 12px;
+        font-size: 13px;
+    }
+}
