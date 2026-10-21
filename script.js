@@ -1,6 +1,14 @@
 /**
- * Fitness Calendar Tracker
- * A calendar application for tracking gym visits
+ * Fitness Calendar Tracker — «Мой календарь спортзала»
+ *
+ * Ключевые принципы реализации:
+ *  - Единый источник правды: состояние живёт в объекте `state`, DOM всегда
+ *    перерисовывается из него (state -> render), никаких inline-стилей из JS.
+ *  - Никакого дублирования слушателей: делегирование событий на контейнере,
+ *    навигация инициализируется один раз.
+ *  - Все визуальные эффекты — только CSS (:hover, :active, @media (hover:hover)).
+ *  - Корректная работа с localStorage: значения валидируются, повреждённые
+ *    данные не ломают приложение.
  */
 
 'use strict';
@@ -9,321 +17,226 @@
 // Constants
 // ============================================================================
 const STORAGE_KEY = 'gymDayStates';
-const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-const MONTHS = [
-    'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
-];
-const DAY_STATES = {
-    NONE: 0,
-    RED: 1,
-    GREEN: 2
-};
-const COLORS = {
-    HOVER: '#e9ecef',
-    DEFAULT: '#f8f9fa',
-    BUTTON_HOVER_SHADOW: '0 4px 12px rgba(0,0,0,0.2)',
-    DAY_HOVER_SHADOW: '0 4px 12px rgba(0,0,0,0.15)'
-};
+const DAY_STATES = Object.freeze({ NONE: 0, RED: 1, GREEN: 2 });
+const STATE_CLASS = Object.freeze({
+    [DAY_STATES.NONE]: null,
+    [DAY_STATES.RED]: 'red',
+    [DAY_STATES.GREEN]: 'green',
+});
+const TOTAL_CELLS = 42; // 6 недель × 7 дней — стабильная высота сетки
 
 // ============================================================================
-// State Management
+// State
 // ============================================================================
-const CalendarApp = {
-    currentDate: new Date(),
-    dayStates: {},
-
-    init() {
-        this.loadFromStorage();
-        setupEventListeners();
-        renderCalendar();
-        setupDesktopFeatures();
-    },
-
-    loadFromStorage() {
-        try {
-            this.dayStates = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-        } catch (e) {
-            console.warn('LocalStorage недоступен:', e);
-            this.dayStates = {};
-        }
-    },
-
-    saveToStorage() {
-        try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(this.dayStates));
-        } catch (e) {
-            console.warn('LocalStorage недоступен:', e);
-        }
-    }
+const state = {
+    viewDate: startOfDay(new Date()), // отображаемый месяц
+    dayStates: {},                    // { 'ГГГГ-ММ-ДД': 0 | 1 | 2 }
 };
+
+// Кэшируем статичные элементы один раз — они не пересоздаются при рендере
+const els = {};
 
 // ============================================================================
 // Utility Functions
 // ============================================================================
-function isTouchDevice() {
-    return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+function startOfDay(date) {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    return d;
 }
 
-function isDesktop() {
-    return window.innerWidth >= 768 && !isTouchDevice();
-}
-
+/** Ключ дня в формате YYYY-MM-DD (локальные даты, без таймзонных сдвигов). */
 function formatDateKey(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    const y = String(date.getFullYear());
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
 }
 
-function getFirstDayOfMonth(year, month) {
-    const firstDay = new Date(year, month, 1);
-    let dayOfWeek = firstDay.getDay();
-    // Adjust to start from Monday (0 = Monday, 6 = Sunday)
-    return dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+/** Смещение первого числа месяца в сетке, начинающейся с понедельника. */
+function getFirstWeekdayOffset(year, month) {
+    return (new Date(year, month, 1).getDay() + 6) % 7;
 }
 
 function getDaysInMonth(year, month) {
     return new Date(year, month + 1, 0).getDate();
 }
 
-// ============================================================================
-// Rendering Functions
-// ============================================================================
-function renderCalendar() {
-    const calendarEl = document.getElementById('calendar');
-    if (!calendarEl) return;
-
-    calendarEl.innerHTML = '';
-    renderWeekdayHeaders(calendarEl);
-    renderMonthTitle();
-    renderDays(calendarEl);
+function isCoercibleObject(value) {
+    return typeof value === 'object' && value !== null;
 }
 
-function renderWeekdayHeaders(container) {
-    WEEKDAYS.forEach(day => {
-        const weekdayEl = document.createElement('div');
-        weekdayEl.className = 'weekday';
-        weekdayEl.textContent = day;
-        container.appendChild(weekdayEl);
-    });
+// ============================================================================
+// Storage
+// ============================================================================
+function loadFromStorage() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : null;
+        state.dayStates = sanitizeDayStates(parsed);
+    } catch (error) {
+        console.warn('Не удалось прочитать данные из localStorage:', error);
+        state.dayStates = {};
+    }
+}
+
+/** Пропускаем только записи вида «ISO-дата → допустимое число состояния». */
+function sanitizeDayStates(value) {
+    const result = {};
+    if (!isCoercibleObject(value)) return result;
+
+    for (const [key, raw] of Object.entries(value)) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) continue;
+        const num = Number(raw);
+        if (num === DAY_STATES.NONE || num === DAY_STATES.RED || num === DAY_STATES.GREEN) {
+            result[key] = num;
+        }
+    }
+    return result;
+}
+
+function saveToStorage() {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state.dayStates));
+    } catch (error) {
+        // Приватный режим Safari / переполнение квоты — работаем дальше в памяти
+        console.warn('Не удалось сохранить данные в localStorage:', error);
+    }
+}
+
+// ============================================================================
+// Rendering
+// ============================================================================
+function renderCalendar() {
+    renderMonthTitle();
+    renderDays();
 }
 
 function renderMonthTitle() {
-    const monthYearEl = document.getElementById('current-month-year');
-    if (monthYearEl) {
-        const { currentDate } = CalendarApp;
-        monthYearEl.textContent = `${MONTHS[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
-    }
+    const formatted = new Intl.DateTimeFormat('ru-RU', { month: 'long', year: 'numeric' })
+        .format(state.viewDate);
+    // «октябрь 2026 г.» -> «Октябрь 2026»: убираем суффикс года и капитализируем
+    els.monthTitle.textContent = formatted
+        .replace(/\s*г\.?$/, '')
+        .replace(/^./, (c) => c.toUpperCase());
 }
 
-function renderDays(container) {
-    const { currentDate } = CalendarApp;
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    
-    const firstDayOffset = getFirstDayOfMonth(year, month);
-    const daysInMonth = getDaysInMonth(year, month);
-    const today = normalizeDate(new Date());
-    
-    const totalCells = 42; // 6 weeks
-    const startDate = new Date(year, month, 1 - firstDayOffset);
+function renderDays() {
+    const { viewDate } = state;
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
+    const offset = getFirstWeekdayOffset(year, month);
+    const startDate = new Date(year, month, 1 - offset);
+    const todayKey = formatDateKey(startOfDay(new Date()));
 
-    for (let i = 0; i < totalCells; i++) {
-        const currentDay = new Date(startDate);
-        currentDay.setDate(startDate.getDate() + i);
-        
-        const dayEl = createDayElement(currentDay, month, today);
-        container.appendChild(dayEl);
+    // Один DocumentFragment вместо 42 прямых вставок в живой DOM
+    const fragment = document.createDocumentFragment();
+
+    for (let i = 0; i < TOTAL_CELLS; i++) {
+        const date = new Date(startDate);
+        date.setDate(startDate.getDate() + i);
+        fragment.append(createDayElement(date, month, todayKey));
     }
+
+    // Дни недели статичны (в HTML), дни месяца — в отдельном контейнере-«теле»,
+    // который целиком перерисовывается через replaceChildren(fragment)
+    els.daysContainer.replaceChildren(fragment);
 }
 
-function createDayElement(date, currentMonth, today) {
-    const dayEl = document.createElement('div');
-    dayEl.className = 'day';
-    dayEl.textContent = date.getDate();
-    
+function createDayElement(date, currentMonth, todayKey) {
     const dateKey = formatDateKey(date);
-    const isCurrentMonth = date.getMonth() === currentMonth;
-    const isToday = normalizeDate(date).getTime() === today.getTime();
-    
-    if (!isCurrentMonth) {
-        dayEl.classList.add('other-month', 'yellow');
+    const dayEl = document.createElement('button');
+
+    dayEl.className = 'day';
+    dayEl.type = 'button';
+    dayEl.dataset.dateKey = dateKey;
+    dayEl.textContent = date.getDate();
+
+    if (date.getMonth() !== currentMonth) {
+        dayEl.classList.add('other-month');
     }
-    
-    if (isToday) {
+    if (dateKey === todayKey) {
         dayEl.classList.add('today');
+        dayEl.setAttribute('aria-current', 'date');
     }
-    
-    applyDayState(dayEl, dateKey);
-    setupDayInteractions(dayEl, dateKey);
-    
+
+    applyDayStateClass(dayEl, dateKey);
     return dayEl;
 }
 
-function normalizeDate(date) {
-    const normalized = new Date(date);
-    normalized.setHours(0, 0, 0, 0);
-    return normalized;
-}
-
-// ============================================================================
-// Day State Management
-// ============================================================================
-function applyDayState(dayEl, dateKey) {
-    const state = CalendarApp.dayStates[dateKey] || DAY_STATES.NONE;
-    
-    dayEl.classList.remove('red', 'green', 'yellow');
-    resetInlineStyles(dayEl);
-    
-    if (state === DAY_STATES.RED) {
-        dayEl.classList.add('red');
-        if (isDesktop()) dayEl.style.transform = 'scale(1.05)';
-    } else if (state === DAY_STATES.GREEN) {
-        dayEl.classList.add('green');
-        if (isDesktop()) dayEl.style.transform = 'scale(1.05)';
-    }
-    
-    if (dayEl.classList.contains('other-month')) {
-        dayEl.classList.add('yellow');
-    }
-}
-
-function resetInlineStyles(element) {
-    element.style.backgroundColor = '';
-    element.style.transform = '';
-    element.style.boxShadow = '';
-}
-
-function handleDayClick(dayEl, dateKey) {
-    const currentState = CalendarApp.dayStates[dateKey] || DAY_STATES.NONE;
-    const newState = (currentState + 1) % 3;
-    
-    CalendarApp.dayStates[dateKey] = newState;
-    CalendarApp.saveToStorage();
-    
-    applyDayState(dayEl, dateKey);
-    
-    if (!isTouchDevice()) {
-        animateClick(dayEl, dateKey);
-    }
-}
-
-function animateClick(dayEl, dateKey) {
-    dayEl.style.transform = 'scale(0.95)';
-    setTimeout(() => applyDayState(dayEl, dateKey), 150);
-}
-
-function setupDayInteractions(dayEl, dateKey) {
-    if (isTouchDevice()) {
-        dayEl.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            handleDayClick(dayEl, dateKey);
-        }, { passive: false });
+/** Синхронизирует классы ячейки с состоянием из state.dayStates. */
+function applyDayStateClass(dayEl, dateKey) {
+    dayEl.classList.remove('red', 'green');
+    const className = STATE_CLASS[state.dayStates[dateKey]] ?? null;
+    if (className) {
+        dayEl.classList.add(className);
+        dayEl.setAttribute('aria-pressed', 'true');
     } else {
-        dayEl.addEventListener('click', () => handleDayClick(dayEl, dateKey));
-        setupHoverEffects(dayEl);
+        dayEl.removeAttribute('aria-pressed');
     }
 }
 
-function setupHoverEffects(dayEl) {
-    dayEl.addEventListener('mouseenter', () => {
-        if (!hasColorClass(dayEl)) {
-            dayEl.style.backgroundColor = COLORS.HOVER;
-            dayEl.style.transform = 'translateY(-2px)';
-            dayEl.style.boxShadow = COLORS.DAY_HOVER_SHADOW;
-        }
-    });
-    
-    dayEl.addEventListener('mouseleave', () => {
-        if (!hasColorClass(dayEl)) {
-            dayEl.style.backgroundColor = COLORS.DEFAULT;
-            dayEl.style.transform = 'translateY(0)';
-            dayEl.style.boxShadow = 'none';
+// ============================================================================
+// Day Interactions (делегирование: один слушатель на весь календарь)
+// ============================================================================
+function handleDayActivate(dayEl) {
+    const dateKey = dayEl.dataset.dateKey;
+    if (!dateKey) return;
+
+    const currentState = state.dayStates[dateKey] ?? DAY_STATES.NONE;
+    const newState = (currentState + 1) % 3;
+
+    if (newState === DAY_STATES.NONE) {
+        delete state.dayStates[dateKey];
+    } else {
+        state.dayStates[dateKey] = newState;
+    }
+
+    saveToStorage();
+    applyDayStateClass(dayEl, dateKey);
+}
+
+function setupCalendarDelegation() {
+    els.daysContainer.addEventListener('click', (event) => {
+        const dayEl = event.target.closest('.day');
+        if (dayEl && els.daysContainer.contains(dayEl)) {
+            handleDayActivate(dayEl);
         }
     });
 }
 
-function hasColorClass(element) {
-    return element.classList.contains('red') || 
-           element.classList.contains('green') || 
-           element.classList.contains('yellow');
-}
-
 // ============================================================================
-// Navigation Functions
+// Navigation
 // ============================================================================
+/**
+ * Безопасная смена месяца: базой всегда служит 1-е число, иначе
+ * setMonth от 31 января перескочил бы на март (Date нормализует переполнение).
+ */
 function changeMonth(direction) {
-    CalendarApp.currentDate.setMonth(CalendarApp.currentDate.getMonth() + direction);
+    const { viewDate } = state;
+    state.viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + direction, 1);
     renderCalendar();
 }
 
 function goToCurrentMonth() {
-    CalendarApp.currentDate = new Date();
+    state.viewDate = startOfDay(new Date());
     renderCalendar();
 }
 
-// ============================================================================
-// Event Listeners Setup
-// ============================================================================
-function setupEventListeners() {
-    setupNavigationButtons();
-    setupTodayButton();
-    setupKeyboardNavigation();
-    setupResizeHandler();
-    preventDoubleTapZoom();
-}
-
-function setupNavigationButtons() {
-    const prevBtn = document.getElementById('prev-month');
-    const nextBtn = document.getElementById('next-month');
-    
-    if (prevBtn) {
-        prevBtn.addEventListener('click', () => changeMonth(-1));
-        setupButtonHover(prevBtn);
-    }
-    
-    if (nextBtn) {
-        nextBtn.addEventListener('click', () => changeMonth(1));
-        setupButtonHover(nextBtn);
-    }
-}
-
-function setupTodayButton() {
-    if (document.getElementById('today-btn')) return;
-    
-    const todayBtn = document.createElement('button');
-    todayBtn.id = 'today-btn';
-    todayBtn.textContent = 'Сегодня';
-    todayBtn.className = 'today-btn';
-    todayBtn.addEventListener('click', goToCurrentMonth);
-    setupButtonHover(todayBtn);
-    
-    const calendarHeader = document.querySelector('.calendar-header');
-    if (calendarHeader) {
-        calendarHeader.appendChild(todayBtn);
-    }
-}
-
-function setupButtonHover(button) {
-    if (!isDesktop()) return;
-    
-    button.addEventListener('mouseenter', () => {
-        button.style.transform = 'translateY(-2px)';
-        button.style.boxShadow = COLORS.BUTTON_HOVER_SHADOW;
-    });
-    
-    button.addEventListener('mouseleave', () => {
-        button.style.transform = 'translateY(0)';
-        button.style.boxShadow = 'none';
-    });
+function setupNavigation() {
+    els.prevMonthBtn.addEventListener('click', () => changeMonth(-1));
+    els.nextMonthBtn.addEventListener('click', () => changeMonth(1));
+    els.todayBtn.addEventListener('click', goToCurrentMonth);
 }
 
 function setupKeyboardNavigation() {
-    if (isTouchDevice()) return;
-    
-    document.addEventListener('keydown', (e) => {
-        switch (e.key) {
+    document.addEventListener('keydown', (event) => {
+        // closest() есть только у элементов; target'ом может быть document/window
+        const target = event.target;
+        if (target instanceof Element && target.closest('input, textarea, select')) return;
+        if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+        switch (event.key) {
             case 'ArrowLeft':
                 changeMonth(-1);
                 break;
@@ -333,106 +246,112 @@ function setupKeyboardNavigation() {
             case 'Home':
                 goToCurrentMonth();
                 break;
+            default:
+                return;
         }
+        event.preventDefault();
     });
 }
 
-function setupResizeHandler() {
-    let resizeTimeout;
-    window.addEventListener('resize', () => {
-        clearTimeout(resizeTimeout);
-        resizeTimeout = setTimeout(renderCalendar, 250);
-    });
-}
-
-function preventDoubleTapZoom() {
-    document.addEventListener('dblclick', (e) => {
-        e.preventDefault();
-    }, { passive: false });
-}
-
 // ============================================================================
-// Desktop Features (Import/Export)
+// Import / Export
 // ============================================================================
-function setupDesktopFeatures() {
-    if (!isDesktop()) return;
-    
-    setTimeout(() => {
-        createImportExportButtons();
-    }, 1000);
-}
-
-function createImportExportButtons() {
-    const container = document.querySelector('.container');
-    if (!container) return;
-    
-    const buttonContainer = document.createElement('div');
-    buttonContainer.className = 'import-export-container';
-    
-    const exportBtn = createExportButton();
-    const importLabel = createImportLabel();
-    const importInput = createImportInput();
-    
-    buttonContainer.append(exportBtn, importLabel, importInput);
-    container.appendChild(buttonContainer);
-}
-
-function createExportButton() {
-    const exportBtn = document.createElement('button');
-    exportBtn.textContent = 'Экспорт';
-    exportBtn.className = 'export-btn';
-    exportBtn.addEventListener('click', exportData);
-    return exportBtn;
-}
-
-function createImportLabel() {
-    const importLabel = document.createElement('label');
-    importLabel.textContent = 'Импорт';
-    importLabel.className = 'import-label';
-    importLabel.htmlFor = 'import-file';
-    return importLabel;
-}
-
-function createImportInput() {
-    const importInput = document.createElement('input');
-    importInput.type = 'file';
-    importInput.id = 'import-file';
-    importInput.accept = '.json';
-    importInput.addEventListener('change', handleImport);
-    return importInput;
-}
-
 function exportData() {
-    const dataStr = JSON.stringify(CalendarApp.dayStates, null, 2);
-    const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(dataStr)}`;
-    
-    const linkElement = document.createElement('a');
-    linkElement.href = dataUri;
-    linkElement.download = 'fitness-calendar-data.json';
-    linkElement.click();
+    const json = JSON.stringify(state.dayStates, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'fitness-calendar-data.json';
+    link.click();
+
+    URL.revokeObjectURL(url);
 }
 
 function handleImport(event) {
-    const file = event.target.files[0];
+    const file = event.target.files?.[0];
     if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            CalendarApp.dayStates = JSON.parse(e.target.result);
-            CalendarApp.saveToStorage();
+
+    file.text() // modern replacement for FileReader
+        .then((text) => {
+            const sanitized = sanitizeDayStates(JSON.parse(text));
+            if (Object.keys(sanitized).length === 0) {
+                throw new Error('в файле нет корректных записей формата "YYYY-MM-DD": 0|1|2');
+            }
+            state.dayStates = sanitized;
+            saveToStorage();
             renderCalendar();
-            alert('Данные успешно импортированы!');
-        } catch (error) {
-            alert('Ошибка при импорте данных: ' + error.message);
-        }
-    };
-    reader.readAsText(file);
+            showStatus('Данные успешно импортированы.', 'success');
+        })
+        .catch((error) => {
+            showStatus(`Ошибка импорта: ${error.message}`, 'error');
+        })
+        .finally(() => {
+            event.target.value = ''; // можно повторно выбрать тот же файл
+        });
+}
+
+function setupImportExport() {
+    els.exportBtn.addEventListener('click', exportData);
+    els.importInput.addEventListener('change', handleImport);
+}
+
+// Non-blocking статус вместо alert(): сообщество и доступность предпочитают
+// live-region уведомления.
+let statusTimer = null;
+function showStatus(message, type) {
+    els.status.textContent = message;
+    els.status.className = `status ${type}`;
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => {
+        els.status.textContent = '';
+        els.status.className = 'status';
+    }, 4000);
 }
 
 // ============================================================================
 // Application Initialization
 // ============================================================================
-document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => CalendarApp.init(), 100);
-});
+function cacheElements() {
+    const requiredIds = [
+        'calendar', 'days-container', 'current-month-year', 'prev-month', 'next-month',
+        'today-btn', 'export-btn', 'import-file', 'app-status',
+    ];
+    for (const id of requiredIds) {
+        const el = document.getElementById(id);
+        if (!el) {
+            throw new Error(`Отсутствует обязательный элемент #${id}`);
+        }
+        els[id] = el;
+    }
+    els.monthTitle = els['current-month-year'];
+    els.daysContainer = els['days-container'];
+    els.prevMonthBtn = els['prev-month'];
+    els.nextMonthBtn = els['next-month'];
+    els.todayBtn = els['today-btn'];
+    els.exportBtn = els['export-btn'];
+    els.importInput = els['import-file'];
+    els.status = els['app-status'];
+}
+
+function init() {
+    try {
+        cacheElements();
+        loadFromStorage();
+        setupCalendarDelegation();
+        setupNavigation();
+        setupKeyboardNavigation();
+        setupImportExport();
+        renderCalendar();
+    } catch (error) {
+        console.error('Ошибка инициализации приложения:', error);
+        showStatus('Приложение не смогло запуститься. Обновите страницу.', 'error');
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+} else {
+    init();
+}

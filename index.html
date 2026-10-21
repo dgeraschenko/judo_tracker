@@ -2,31 +2,56 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- user-scalable=no убран: запрет масштабирования ломает доступность (WCAG 1.4.4) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light">
     <title>Мой трекер спортзала</title>
-    
+
     <!-- Иконка для вкладки -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏋️‍♂️</text></svg>">
-    
+
     <!-- Apple Touch Icon -->
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏋️‍♂️</text></svg>">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    
+
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
+    <main class="container">
         <h1>🗓️ Мой календарь спортзала</h1>
+
         <div class="calendar-header">
-            <button id="prev-month">←</button>
-            <h2 id="current-month-year">Май 2024</h2>
-            <button id="next-month">→</button>
+            <button id="prev-month" class="nav-btn" type="button" aria-label="Предыдущий месяц">&#8592;</button>
+            <h2 id="current-month-year" aria-live="polite">&mdash;</h2>
+            <button id="next-month" class="nav-btn" type="button" aria-label="Следующий месяц">&#8594;</button>
+            <button id="today-btn" type="button">Сегодня</button>
         </div>
-        <div id="calendar">
-            <!-- Дни недели и числа будут генерироваться через JavaScript -->
+
+        <section id="calendar" aria-label="Календарь посещений спортзала">
+            <!-- Дни недели — статичная разметка, не перерисовывается при навигации -->
+            <span class="weekday" aria-hidden="true">Пн</span>
+            <span class="weekday" aria-hidden="true">Вт</span>
+            <span class="weekday" aria-hidden="true">Ср</span>
+            <span class="weekday" aria-hidden="true">Чт</span>
+            <span class="weekday" aria-hidden="true">Пт</span>
+            <span class="weekday" aria-hidden="true">Сб</span>
+            <span class="weekday" aria-hidden="true">Вс</span>
+            <!-- Подсетка дней: contents — ячейки попадают в общий grid календаря -->
+            <div id="days-container" class="days-grid"></div>
+        </section>
+
+        <div class="toolbar">
+            <button id="export-btn" type="button">Экспорт</button>
+            <label class="import-label" for="import-file">Импорт</label>
+            <input id="import-file" type="file" accept=".json,application/json" hidden>
         </div>
-    </div>
-    <script src="script.js"></script>
+
+        <p id="app-status" class="status" role="status" aria-live="polite"></p>
+    </main>
+
+    <!-- defer: парсинг HTML не блокируется, init() отрабатывает после DOM -->
+    <script src="script.js" defer></script>
 </body>
 </html>
