@@ -35,9 +35,9 @@ const CalendarApp = {
 
     init() {
         this.loadFromStorage();
-        this.setupEventListeners();
-        this.render();
-        this.setupDesktopFeatures();
+        setupEventListeners();
+        renderCalendar();
+        setupDesktopFeatures();
     },
 
     loadFromStorage() {
